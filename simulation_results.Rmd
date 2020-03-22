@@ -1,0 +1,64 @@
+---
+title: "Modelling herd immunity"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This uses the outputs from simulations in Julia to see how different levels of clustering of existing immunity effect the efficacy of herd immunity (ie, will it stop lots of other people getting infected or not?)
+
+The Julia code to simulate the network and the spread of disease is available here: https://github.com/adam-jb/disease_spread
+
+In the code a lower "cluster_val" indicates a higher level of clustering of the herd immunity. The model sets who is "herd immune" by randomly selecting individuals and "spreading" the immunity (similar to the disease) from them until right number of people are classified. The higher "cluster_val" the more people are randomly selected at the start, meaning that the immunity has less chance to travel out from each person before the classification limit is reached. The "cluster_val" is the proportion of the herd immune population which is randomly selected, so 0.001 will give much more clustering than 0.80, which is close to random selection.  
+
+The data below are from simulations of networks of 10,000 people. Each person in the network 150 connections of 4 strengths, based on Dunbar layers (5 closest, 15 inner circle, 40 wider circle, 90 acquaintances.
+
+The simulation was run 100 times for each combination of parameters. 
+
+
+# Results
+
+First the data is prepped:
+
+```{r, include = FALSE} 
+library(ggplot2)
+library(ggthemes)
+library(dplyr)
+```
+
+```{r}
+path <- paste0(dirname(getwd()), "/Desktop/simulation_results.csv")
+res = read.csv(path)
+names(res) <- c("cluster_val", "r_val", "prop_immmune", "init_cases", "days_infectious", "prop_infected")
+res$cluster_val <- as.factor(res$cluster_val)
+```
+
+
+Then plotted: for 10 starting infections the level of clustering doesn't appear to make much difference (with the exception of the least clustered cases). 
+
+```{r}
+in_res <- res %>% filter(init_cases == 10)
+ggplot(in_res, aes(x = cluster_val, y = prop_infected, fill = cluster_val)) +
+  geom_violin() +
+  theme_bw() +
+  theme(legend.position = "none") +
+  xlab("Cluster parameter (left side = most clustered / right side = least clustered)") +
+  ylab("Proportion of non-herd population infected")
+```
+
+
+Below: the same, but with 50 starting infections. Again, it seems that so long the distribution of immunity isn't completely random, clustering doesn't make much difference (under the current model parameters!)
+
+```{r, echo = FALSE}
+in_res <- res %>% filter(init_cases == 50)
+ggplot(in_res, aes(x = cluster_val, y = prop_infected, fill = cluster_val)) +
+  geom_violin() +
+  theme_bw() +
+  theme(legend.position = "none") +
+  xlab("Cluster parameter (left side = most clustered / right side = least clustered)") +
+  ylab("Proportion of non-herd population infected")
+```
+
+
