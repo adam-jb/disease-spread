@@ -763,7 +763,7 @@ end
 
 
 ### setting parameters for network creation
-net_size = 500
+net_size = 10000
 
 # size and weight of infection chance for each level of someone's network
 dunbar1 = 5
@@ -782,12 +782,12 @@ proportion_shared = 0.50
 
 
 # setting parameters for disease spread
-cluster_strength = [0.001, 0.05, 0.30, 0.80]
-initial_cases = [1, 3, 5, 10, 25, 50]
-days_vals = [5, 6]
+cluster_strength = [0.0001, 0.001, 0.01, 0.05, 0.30, 0.80]
+initial_cases = [10]
+days_vals = [6]
 population_start_immune = [0.6]
 r_values = [2.5]
-iters = 10
+iters = 100
 
 
 # initialise network
@@ -813,4 +813,12 @@ output = sim_spread_mult(net = net,
                 population_start_immune = population_start_immune,
                 iters = iters,
                 r_values = r_values,
+                dunbar1 = dunbar1,
+                dunbar2 = dunbar2,
+                dunbar3 = dunbar3,
+                dunbar4 = dunbar4,
+                dweight1 = dweight1,
+                dweight2 = dweight2,
+                dweight3 = dweight3,
+                dweight4 = dweight4,
                 verbose = true)
