@@ -1,4 +1,4 @@
-# Simulates the efficacy of herd immunity for different input parameters
+# Simulations of the efficacy of herd immunity with various parameters
 
 Functions to model a network and the spread of disease through that network over time. 
 
