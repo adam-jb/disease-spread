@@ -8,6 +8,14 @@
 
 
 
+# To make faster (perhaps):
+# when someone links to another, it automatically populates their dictionary,
+# and when that connection is dweight= 10, then the new connection is
+# automatically populated with X new connections
+
+
+
+
 using InvertedIndices
 using StatsBase
 
@@ -654,7 +662,8 @@ function sim_spread(;net::Dict,
                     dweight3::Float64 = 2.0,
                     dweight4::Float64 = 1.0,
                     max_days::Int64 = 1000,
-                    verbose::Bool = true)
+                    verbose::Bool = true,
+                    cluster_link_multiplier::Float64 = 1.0)
 
 
 # this is proportion of someone infecting someone in the dunbar4 level of their
@@ -678,7 +687,7 @@ net = reset_net(net)
 # classifying immunity
 a = time()
 net = immune_init(net, init_k)
-imspread_mult = (dunbar_total / r_value) * 0.5
+imspread_mult = (dunbar_total / r_value) * 0.5 * cluster_link_multiplier
 net = immunity_spread(net, limit, net_size, daily_spread_base, imspread_mult)
 b = time() - a
 #println("Classified who's already immune in $b seconds")
@@ -717,7 +726,8 @@ function sim_spread_mult(;net::Dict,
     dweight3::Float64 = 2.0,
     dweight4::Float64 = 1.0,
     max_days::Int64 = 1000,
-    verbose::Bool = true)
+    verbose::Bool = true,
+    cluster_link_multiplier::Array{Float64} = 1.0)
 
 
 
@@ -728,7 +738,8 @@ holder = reshape(Float64[], 0, 6)
             for k in days_vals
                 for l in population_start_immune
                     for m in r_values
-                        for z in 1:iters
+                        for a in cluster_link_multiplier
+                            for z in 1:iters
 
                                 holder = vcat(holder,
                                     hcat(i, m, l, j, k,
@@ -747,7 +758,9 @@ holder = reshape(Float64[], 0, 6)
                                         dweight3 = dweight3,
                                         dweight4 = dweight4,
                                         max_days = max_days,
-                                        verbose = verbose)))
+                                        verbose = verbose,
+                                        cluster_link_multiplier = a)))
+                                    end
 
                         end
                     end
@@ -793,6 +806,7 @@ days_vals = [6]
 population_start_immune = [0.6]
 r_values = [2.5]
 iters = 100
+cluster_link_multiplier = [0.2, 0.8, 1.4]
 
 
 # initialise network
@@ -826,4 +840,5 @@ output = sim_spread_mult(net = net,
                 dweight2 = dweight2,
                 dweight3 = dweight3,
                 dweight4 = dweight4,
-                verbose = true)
+                verbose = true,
+                cluster_link_multiplier = cluster_link_multiplier)
