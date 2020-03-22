@@ -309,7 +309,8 @@ function initialise_network(;net_size::Int64 = 1000,
     dweight1::Float64 = 10.0,
     dweight2::Float64 = 4.0,
     dweight3::Float64 = 2.0,
-    dweight4::Float64 = 1.0)
+    dweight4::Float64 = 1.0,
+    verbose::Bool = true)
 
 
 total_dun = dunbar1 + dunbar2 + dunbar3 + dunbar4
@@ -426,8 +427,11 @@ end
 mentions[iter] = total_dun
 
 
-# ending loop
+if verbose
 println("Connection no. $iter grown: $score0, $store1, $store2, $store3")
+end
+
+# ending loop
 end
 
 println(string("Network created: object size = ",
@@ -558,22 +562,40 @@ end
 
 
 
+
+"Seeing there's at least 1 infectious person in the population"
+function current_cases(days_infectious::Int64, stat_temp::Dict)
+a = collect(0:days_infectious)
+b = collect(keys(stat_temp))
+counter = 0
+for a in a
+    for b in b
+        if string(a) == string(b)
+            counter += 1
+        end
+    end
+end
+
+if counter == 0
+    return false
+else
+    return true
+end
+
+end # close function
+
+
+
+
+
 "Simulating the spread of the disease"
 function disease_spread(net::Dict, max_days::Int64, daily_spread_base::Float64,
-    days_infectious::Int64)
+    days_infectious::Int64, verbose::Bool)
 
-stat = 0
+stat_temp = Dict("1" => 0)
 days = 0
-days_no_change = 0
 
-while days < max_days &&
-    (0 in stat ||
-    1 in stat ||
-    2 in stat ||
-    3 in stat ||
-    4 in stat ||
-    5 in stat ||
-    6 in stat)
+while days < max_days && current_cases(8, stat_temp)
 
 days += 1
 
@@ -601,17 +623,16 @@ end
 
 end
 
-stat = collect(keys(get_status(net)))
-
-
+stat_temp = get_status(net)
 
 end  # close while loop
 
+if verbose
 println(string("Simulation resolved in $days days"))
+end
+
 return get_status(net)
 end # close function
-
-
 
 
 
@@ -630,7 +651,8 @@ function sim_spread(;net::Dict,
                     dweight2::Float64 = 4.0,
                     dweight3::Float64 = 2.0,
                     dweight4::Float64 = 1.0,
-                    max_days::Int64 = 1000)
+                    max_days::Int64 = 1000,
+                    verbose::Bool = true)
 
 
 # this is proportion of someone infecting someone in the dunbar4 level of their
@@ -659,7 +681,7 @@ b = time() - a
 # spreading disease
 a = time()
 net = illness_init(net, k_illness)
-result = disease_spread(net, max_days, daily_spread_base, days_infectious)
+result = disease_spread(net, max_days, daily_spread_base, days_infectious, verbose)
 b = time() - a
 #println("Disease spread simulated in $b seconds")
 
@@ -689,7 +711,8 @@ function sim_spread_mult(;net::Dict,
     dweight2::Float64 = 4.0,
     dweight3::Float64 = 2.0,
     dweight4::Float64 = 1.0,
-    max_days::Int64 = 1000)
+    max_days::Int64 = 1000,
+    verbose::Bool = true)
 
 
 
@@ -718,7 +741,8 @@ holder = reshape(Float64[], 0, 6)
                                         dweight2 = dweight2,
                                         dweight3 = dweight3,
                                         dweight4 = dweight4,
-                                        max_days = max_days)))
+                                        max_days = max_days,
+                                        verbose = verbose)))
 
                         end
                     end
@@ -760,7 +784,7 @@ proportion_shared = 0.50
 # setting parameters for disease spread
 cluster_strength = [0.001, 0.05, 0.30, 0.80]
 initial_cases = [1, 3, 5, 10, 25, 50]
-days_vals = [6]
+days_vals = [5, 6]
 population_start_immune = [0.6]
 r_values = [2.5]
 iters = 10
@@ -776,15 +800,17 @@ net = initialise_network(net_size = net_size,
                         dweight2 = dweight2,
                         dweight3 = dweight3,
                         dweight4 = dweight4,
-                        proportion_shared = proportion_shared)
+                        proportion_shared = proportion_shared,
+                        verbose = true)
 
 
 
 # testing all parameters
-io = sim_spread_mult(net = net,
+output = sim_spread_mult(net = net,
                 cluster_strength = cluster_strength,
                 initial_cases = initial_cases,
                 days_vals = days_vals,
                 population_start_immune = population_start_immune,
                 iters = iters,
-                r_values = r_values)
+                r_values = r_values,
+                verbose = true)
