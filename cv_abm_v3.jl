@@ -1,6 +1,6 @@
 
 
-# agent based modelling for spread of CV19, and extent to which a certain
+# agent based modelling for spread of a contagion, and extent to which a certain
 # level of existing immunity prevents more spread, depending on the
 # network characteristics and other parameters
 
