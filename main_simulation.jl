@@ -495,7 +495,9 @@ end
 
 "Spreading immunity"
 function immunity_spread(net::Dict, limit::Float64, net_size::Int64,
-                        daily_spread_base::Float64)
+                        daily_spread_base::Float64, imspread_mult::Float64)
+
+daily_spread_base = daily_spread_base * imspread_mult
 
 while get_status(net)["already immune"] < limit
 
@@ -539,7 +541,7 @@ if nprune > 0
 
     for i in 1:length(idx)
         id = idx[i]
-        net["$id"]["status"] == "healthy"
+        net["$id"]["status"] = "healthy"
     end
 end # close prune if statement
 
@@ -662,6 +664,8 @@ daily_spread_base =  r_value /
     (dunbar3 * dweight3) + (dunbar4 * dweight4)) *
     days_infectious)
 
+dunbar_total = dunbar1 + dunbar2 + dunbar3 + dunbar4
+
 net_size = length(net)
 
 limit = net_size * init_imu
@@ -674,7 +678,8 @@ net = reset_net(net)
 # classifying immunity
 a = time()
 net = immune_init(net, init_k)
-net = immunity_spread(net, limit, net_size, daily_spread_base)
+imspread_mult = (dunbar_total / r_value) * 0.5
+net = immunity_spread(net, limit, net_size, daily_spread_base, imspread_mult)
 b = time() - a
 #println("Classified who's already immune in $b seconds")
 
@@ -782,8 +787,8 @@ proportion_shared = 0.50
 
 
 # setting parameters for disease spread
-cluster_strength = [0.0001, 0.001, 0.01, 0.05, 0.30, 0.80]
-initial_cases = [10]
+cluster_strength = [0.0002, 0.005, 0.05, 0.80]
+initial_cases = [10, 50]
 days_vals = [6]
 population_start_immune = [0.6]
 r_values = [2.5]
