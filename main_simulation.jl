@@ -4,14 +4,7 @@
 # level of existing immunity prevents more spread, depending on the
 # network characteristics and other parameters
 
-# could add some perturbation in the network as it's very uniform atm
-
-
-
-# To make faster (perhaps):
-# when someone links to another, it automatically populates their dictionary,
-# and when that connection is dweight= 10, then the new connection is
-# automatically populated with X new connections
+# could add some perturbation in the network as it's very uniform 
 
 
 
@@ -66,6 +59,25 @@ return vals_out, strengths_out
 end # close function
 
 
+
+"removing any new connections to people with max connections already"
+function looker_val_only(vals_out::Array{Int64},
+    mentions::Dict, total_dun::Int64)
+idx = Bool[]
+len = length(vals_out)
+counting = 0
+m = 1
+while counting < len
+    if mentions[vals_out[m]] > (total_dun - 1)
+        deleteat!(vals_out, m)
+        counting = counting + 1
+    else m = m + 1
+        counting = counting + 1
+    end
+end
+return vals_out
+
+end # close function
 
 
 
@@ -166,7 +178,7 @@ else
 all_conn, all_strength = concat_opts(net, all_dunbar1_conns)
 
 
-# remove connections with people who already have 150 connections
+# remove connections with people who already have threshold no. of connections
 all_conn, all_strength = looker(all_conn, all_strength, mentions, total_dun)
 
 
@@ -244,6 +256,30 @@ end # end of function
 
 
 
+"creating new connections to people not yet considered"
+function find_forward_newvals(next_vals::Array{Int64}, total_dun::Int64, iter::Int64,
+    net_size::Int64, mentions::Dict)
+countinga = 0
+while (length(next_vals) < (total_dun)) & (countinga < 5)
+
+max_new = net_size - (iter + 1)
+
+cand_vals = sample((iter + 1):net_size,
+                                min(total_dun - length(next_vals), max_new),
+                                replace = false)
+
+next_vals = unique(vcat(next_vals, looker_val_only(cand_vals, mentions, total_dun)))
+countinga += 1
+
+end  # close while loop
+
+return next_vals
+end # close function
+
+
+
+
+
 
 #### diagnostics of network creation
 
@@ -296,11 +332,13 @@ end
 o1, o2 = tester(net)
 ix = findall(map(x -> x != total_dun, o1))
 
+g = findall(ih != ix)
+
 # whether these are the same checks that every connection is reciprocated
     if ih == ix
     println("All connections in network reciprocated")
     else println("Error in network creations: some connections are only
-                logged for one party")
+                logged for one party. Discrepency in these rows: $g")
     end
 end
 
@@ -308,7 +346,7 @@ end
 
 
 
-function initialise_network(;net_size::Int64 = 1000,
+function initialise_network(;net_size::Int64 = 500,
     proportion_shared = 0.75,
     dunbar1::Int64 = 5,
     dunbar2::Int64 = 15,
@@ -318,20 +356,27 @@ function initialise_network(;net_size::Int64 = 1000,
     dweight2::Float64 = 4.0,
     dweight3::Float64 = 2.0,
     dweight4::Float64 = 1.0,
-    verbose::Bool = true)
+    verbose::Bool = true,
+    check_network::Bool = false)
 
 
 total_dun = dunbar1 + dunbar2 + dunbar3 + dunbar4
 
 # initialising first member of network with 150 random connections
 net = Dict()
-net["1"] = Dict()
-net["1"]["conn"] = sample(1:net_size, total_dun, replace = false)
+for i in 1:net_size
+net["$i"] = Dict()
+net["$i"]["conn"] = Int64[]
+net["$i"]["strength"] = zeros(0)
+net["$i"]["status"] = "healthy"
+end
+
+
+net["1"]["conn"] = sample(2:net_size, total_dun, replace = false)
 net["1"]["strength"] = vcat(fill(dweight1, dunbar1),
                 fill(dweight2, dunbar2),
                 fill(dweight3, dunbar3),
                 fill(dweight4, dunbar4))
-net["1"]["status"] = "healthy"
 
 
 # initalising record of how many times a value is mentioned
@@ -346,16 +391,36 @@ for m in 1:length(net["1"]["conn"])
 end
 mentions[1] = total_dun
 
+# pushing values to other people's dictionaries
+for m in 1:length(net["1"]["conn"])
+    idx = net["1"]["conn"][m]
+    push!(net["$idx"]["conn"], 1)
+    push!(net["$idx"]["strength"], net["1"]["strength"][m])
+end
+
+
+
 
 
 ### Main loop to create network
 for iter in 2:net_size
 
-# finding existing connections
-next_vals, next_strength = find_conns(net, iter)
+# finding existing connections, and hold these as a separate
+# vector as they won't need adding to mentions
+
+if iter == net_size
+    continue
+end
+
+
+
+next_vals = net["$iter"]["conn"]
+next_strength = net["$iter"]["strength"]
 
 
 score0 = length(next_vals)
+
+
 
 
 # creating connections from existing dunbar1 level connections
@@ -369,34 +434,30 @@ end
 store1 = length(next_vals)
 
 
+
+
+# removing any self-reference
+if sum(next_vals .== iter) > 0
+    next_vals = next_vals[Not(next_vals .== iter)]
+end
+
+
 # creating random connections to bring to maximum
 if length(next_vals) < total_dun
-
-# ensuring existing connections aren't included
-sample_pool = Int64[]
-for m in (iter + 1):net_size
-if (m ∉ next_vals) && (mentions[m] < total_dun)
-    push!(sample_pool, m)
-end
-end
-
-final_vals = vcat(next_vals, sample(sample_pool,
-                                min(length(sample_pool), total_dun - length(next_vals)),
-                                replace = false))
-
+final_vals = find_forward_newvals(next_vals, total_dun, iter, net_size, mentions)
 else
 final_vals = next_vals
 end
 
 
-# setting strengths of connections
+
+# setting strengths of new connections
 d1 = fill(dweight1, max(dunbar1 - sum(next_strength .== dweight1), 0))
 d2 = fill(dweight2, max(dunbar2 - sum(next_strength .== dweight2), 0))
 d3 = fill(dweight3, max(dunbar3 - sum(next_strength .== dweight3), 0))
 d4 = fill(dweight4, max(dunbar4 - sum(next_strength .== dweight4), 0))
 
 final_strength = vcat(next_strength, d1, d2, d3, d4)
-
 
 
 store2 = length(final_vals)
@@ -417,11 +478,29 @@ end
 store3 = length(final_strength)
 
 
-# saving in dictionary
-net["$iter"] = Dict()
-net["$iter"]["conn"] = final_vals
-net["$iter"]["strength"] = final_strength
-net["$iter"]["status"] = "healthy"
+
+# determining which connections are new, dropping the existing onea
+function find_new_idx(net::Dict, final_vals::Array{Int64})
+idx = Int64[]
+for m in 1:length(final_vals)
+    if final_vals[m] ∉ net["$iter"]["conn"]
+        push!(idx, m)
+    end
+end
+return idx
+end # close function
+
+idx = find_new_idx(net, final_vals)
+final_vals = final_vals[idx]
+final_strength = final_strength[idx]
+
+
+# pushing new values to other people's dictionaries
+for m in 1:length(final_vals)
+    idx = final_vals[m]
+    push!(net["$idx"]["conn"], iter)
+    push!(net["$idx"]["strength"], final_strength[m])
+end
 
 
 # capturing mentions of upcoming connections
@@ -430,9 +509,15 @@ for m in 1:length(final_vals)
     mentions[final_vals[m]] += 1
 end
 
+# saving new  connections in dictionary
+net["$iter"]["conn"] = vcat(net["$iter"]["conn"], final_vals)
+net["$iter"]["strength"] = vcat(net["$iter"]["strength"], final_strength)
+
 
 # updating this person's mentions
 mentions[iter] = total_dun
+
+
 
 
 if verbose
@@ -445,7 +530,10 @@ end
 println(string("Network created: object size = ",
             trunc(Int64, Base.summarysize(net)/10^6), "Mb; has $net_size people"))
 
-check_net(net = net, total_dun = total_dun)
+
+if check_network == true
+ check_net(net = net, total_dun = total_dun)
+end
 
 return net
 
@@ -562,13 +650,21 @@ end # close function
 
 "initialising illness with K randomly chosen peaple"
 function illness_init(net::Dict, k_illness::Int64)
-start = sample(1:length(net), k_illness, replace = false)
-for ref in start
-net["$ref"]["status"] = 0
-end
-return net
+
+for i in 1:k_illness
+
+    found_one = 0
+    while found_one < 1
+        ref = sample(1:length(net))
+        if net["$ref"]["status"] == "healthy"
+        net["$ref"]["status"] = 0
+            found_one += 1
+        end
+    end
 end
 
+return net
+end # closing function
 
 
 
@@ -599,15 +695,18 @@ end # close function
 
 
 "Simulating the spread of the disease"
-function disease_spread(net::Dict, max_days::Int64, daily_spread_base::Float64,
-    days_infectious::Int64, verbose::Bool)
+function disease_spread(;net::Dict, max_days::Int64, daily_spread_base::Float64,
+    days_infectious::Int64, verbose::Bool, return_days::Bool = false)
 
 stat_temp = Dict("1" => 0)
 days = 0
+infect_store = Int64[]
 
 while days < max_days && current_cases(8, stat_temp)
 
 days += 1
+
+today_infections = 0
 
 for i in 1:length(net)
 
@@ -622,6 +721,9 @@ for i in 1:length(net)
                 if net["$id"]["status"] == "healthy"
                     net["$id"]["status"] = 0
                 end
+
+                today_infections += 1
+
             end
         end
 
@@ -635,23 +737,36 @@ end
 
 stat_temp = get_status(net)
 
+push!(infect_store, today_infections)
+
 end  # close while loop
 
 if verbose
 println(string("Simulation resolved in $days days"))
 end
 
-return get_status(net)
+
+result = get_status(net)
+outs = result["had disease"] / (net_size * (1 - init_imu))
+
+
+if (return_days == false)
+    return outs, days
+else
+    return outs, days, infect_store
+end
+
+
 end # close function
 
 
 
 "Modelling spread for a given set of parameters"
 function sim_spread(;net::Dict,
-                    r_value::Float64 = 2.5,
+                    r_value::Float64 = 3.2,
                     init_imu::Float64 = 0.6,
                     cluspa::Float64 = 0.1,
-                    k_illness::Int64 = 3,
+                    k_illness::Int64 = 50,
                     days_infectious::Int64 = 6,
                     dunbar1::Int64 = 5,
                     dunbar2::Int64 = 15,
@@ -663,7 +778,8 @@ function sim_spread(;net::Dict,
                     dweight4::Float64 = 1.0,
                     max_days::Int64 = 1000,
                     verbose::Bool = true,
-                    cluster_link_multiplier::Float64 = 1.0)
+                    cluster_link_multiplier::Float64 = 1.0,
+                    return_days::Bool =false)
 
 
 # this is proportion of someone infecting someone in the dunbar4 level of their
@@ -695,16 +811,31 @@ b = time() - a
 # spreading disease
 a = time()
 net = illness_init(net, k_illness)
-result = disease_spread(net, max_days, daily_spread_base, days_infectious, verbose)
+
+if return_days == false
+    outs, days_len = disease_spread(net, max_days, daily_spread_base,
+                                    days_infectious,
+                                    verbose)
+else
+    outs, days_len, days_vec = disease_spread(net, max_days, daily_spread_base,
+                                        days_infectious,
+                                        verbose, return_days)
+    days_vec = vcat(days_vec, fill(0, max_days - length(days_vec)))
+end
+
+
+
 b = time() - a
 #println("Disease spread simulated in $b seconds")
 
 # println(get_status(net))
-
-outs = result["had disease"] / (net_size * (1 - init_imu))
-
-return outs
+if return_days == false
+    return outs, (days_len * 1.0)
+else
+    return outs, (days_len * 1.0), days_vec
 end
+
+end # end of function
 
 
 
@@ -727,11 +858,14 @@ function sim_spread_mult(;net::Dict,
     dweight4::Float64 = 1.0,
     max_days::Int64 = 1000,
     verbose::Bool = true,
-    cluster_link_multiplier::Array{Float64} = 1.0)
+    cluster_link_multiplier::Array{Float64} = 1.0,
+    return_days::Bool =false)
 
 
 
-holder = reshape(Float64[], 0, 6)
+holder = reshape(Float64[], 0, 8)
+
+days_holder = reshape(Int64[], 0, max_days)
 
     for i in cluster_strength
         for j in initial_cases
@@ -741,27 +875,56 @@ holder = reshape(Float64[], 0, 6)
                         for a in cluster_link_multiplier
                             for z in 1:iters
 
-                                holder = vcat(holder,
-                                    hcat(i, m, l, j, k,
-                                        sim_spread(net = net,
-                                        cluspa = i,
-                                        r_value = m,
-                                        init_imu = l,
-                                        k_illness = j,
-                                        days_infectious = k,
-                                        dunbar1 = dunbar1,
-                                        dunbar2 = dunbar2,
-                                        dunbar3 = dunbar3,
-                                        dunbar4 = dunbar4,
-                                        dweight1 = dweight1,
-                                        dweight2 = dweight2,
-                                        dweight3 = dweight3,
-                                        dweight4 = dweight4,
-                                        max_days = max_days,
-                                        verbose = verbose,
-                                        cluster_link_multiplier = a)))
-                                    end
+                                if return_days == false
+                                g, r = sim_spread(net = net,
+                                cluspa = i,
+                                r_value = m,
+                                init_imu = l,
+                                k_illness = j,
+                                days_infectious = k,
+                                dunbar1 = dunbar1,
+                                dunbar2 = dunbar2,
+                                dunbar3 = dunbar3,
+                                dunbar4 = dunbar4,
+                                dweight1 = dweight1,
+                                dweight2 = dweight2,
+                                dweight3 = dweight3,
+                                dweight4 = dweight4,
+                                max_days = max_days,
+                                verbose = verbose,
+                                cluster_link_multiplier = a)
 
+                                holder = vcat(holder,
+                                    hcat(i, m, l, j, k, a, g, r))
+
+
+                                else
+                                    g, r, days_vec = sim_spread(net = net,
+                                    cluspa = i,
+                                    r_value = m,
+                                    init_imu = l,
+                                    k_illness = j,
+                                    days_infectious = k,
+                                    dunbar1 = dunbar1,
+                                    dunbar2 = dunbar2,
+                                    dunbar3 = dunbar3,
+                                    dunbar4 = dunbar4,
+                                    dweight1 = dweight1,
+                                    dweight2 = dweight2,
+                                    dweight3 = dweight3,
+                                    dweight4 = dweight4,
+                                    max_days = max_days,
+                                    verbose = verbose,
+                                    cluster_link_multiplier = a,
+                                    return_days = true)
+
+                                    holder = vcat(holder,
+                                        hcat(i, m, l, j, k, a, g, r))
+
+                                    days_holder = vcat(days_holder, days_vec')
+                                end # end of if/else for days return
+
+                            end
                         end
                     end
                 end
@@ -769,7 +932,11 @@ holder = reshape(Float64[], 0, 6)
         end
     end
 
-return holder
+if return_days == false
+    return holder
+else
+    return holder, days_holder
+end
 
 end
 
@@ -781,7 +948,7 @@ end
 
 
 ### setting parameters for network creation
-net_size = 10000
+net_size = 100000
 
 # size and weight of infection chance for each level of someone's network
 dunbar1 = 5
@@ -800,13 +967,13 @@ proportion_shared = 0.50
 
 
 # setting parameters for disease spread
-cluster_strength = [0.0002, 0.005, 0.05, 0.80]
-initial_cases = [10, 50]
+cluster_strength = [0.1]
+initial_cases = [50]
 days_vals = [6]
 population_start_immune = [0.6]
-r_values = [2.5]
-iters = 100
-cluster_link_multiplier = [0.2, 0.8, 1.4]
+r_values = [3.2]
+iters = 50
+cluster_link_multiplier = [0.05, 0.3, 1.5]
 
 
 # initialise network
@@ -824,8 +991,8 @@ net = initialise_network(net_size = net_size,
 
 
 
-# testing all parameters
-output = sim_spread_mult(net = net,
+# running simulation
+output, days_mat = sim_spread_mult(net = net,
                 cluster_strength = cluster_strength,
                 initial_cases = initial_cases,
                 days_vals = days_vals,
@@ -841,4 +1008,5 @@ output = sim_spread_mult(net = net,
                 dweight3 = dweight3,
                 dweight4 = dweight4,
                 verbose = true,
-                cluster_link_multiplier = cluster_link_multiplier)
+                cluster_link_multiplier = cluster_link_multiplier,
+                return_days = true)
