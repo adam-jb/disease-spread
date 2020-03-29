@@ -1,10 +1,9 @@
 
-
 # agent based modelling for spread of a contagion, and extent to which a certain
 # level of existing immunity prevents more spread, depending on the
 # network characteristics and other parameters
 
-# could add some perturbation in the network as it's very uniform 
+# could add some perturbation in the network as it's very uniform
 
 
 
@@ -695,7 +694,7 @@ end # close function
 
 
 "Simulating the spread of the disease"
-function disease_spread(;net::Dict, max_days::Int64, daily_spread_base::Float64,
+function disease_spread(net::Dict, max_days::Int64, daily_spread_base::Float64,
     days_infectious::Int64, verbose::Bool, return_days::Bool = false)
 
 stat_temp = Dict("1" => 0)
@@ -815,7 +814,7 @@ net = illness_init(net, k_illness)
 if return_days == false
     outs, days_len = disease_spread(net, max_days, daily_spread_base,
                                     days_infectious,
-                                    verbose)
+                                    verbose, return_days)
 else
     outs, days_len, days_vec = disease_spread(net, max_days, daily_spread_base,
                                         days_infectious,
@@ -939,6 +938,7 @@ else
 end
 
 end
+
 
 
 
