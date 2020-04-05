@@ -1,5 +1,7 @@
 # Simulations of the efficacy of herd immunity with various parameters
 
+Recommended reading: https://adam-jb.github.io/
+
 Functions to model a network and the spread of disease through that network over time. 
 
 This allows the user to output results for different combinations of parameters:
