@@ -1,0 +1,237 @@
+---
+title : Using Julia to create networks and model the spread of disease
+date : Adam Bricknell / April 2020
+---
+​
+
+My aim in this post is to show you how to simulate the spread
+of a disease in Julia. This simulates large networks, has various
+customisation options and allows you to run many simulations in a batch.
+
+To run your own simulations, the functions needed can be sourced from:
+https://github.com/adam-jb/disease-spread/blob/master/main_simulation.jl
+
+
+
+# How is the network structured?
+
+Everyone in the network has 4 levels of connection: this goes from their inner
+circle to their outer circle.
+The user can set the number and strength of connections at each of the 4 levels, with the default
+values roughly reflecting Dunbar layers (5, 15, 40, 90). The likelihood of a person
+infecting someone is proportional to the strength of
+their connection.
+
+The network assumes that people are more likely to know the connections of their
+own closest connections than they are a person selected at random. How true this
+is can be adjusted with the "proportion_shared" network parameter.
+
+Everyone in the
+network has the same number of connections at each level (this is clearly
+not a reflection of the real world!) For example, person 1 might have 4 strongest
+connections, 16 next strongest, then 35 3rd strongest and 100 weak connections.
+And everyone else in the network would have the same number of connections at
+each strength level.
+
+By itself network is an undirected network. When disease is
+spreading it's a directed network (or "graph") as it transmits from one
+person to another.
+
+
+
+
+# Setting parameters for the network
+
+
+```{julia; results = hidden}
+# Total number of people in network
+net_size = 500
+
+# Size and weight of infection chance for each level of someone's network
+dunbar1 = 5
+dunbar2 = 15
+dunbar3 = 40
+dunbar4 = 90
+dweight1 = 10.0
+dweight2 = 4.0
+dweight3 = 2.0
+dweight4 = 1.0
+
+# How many connections will the average person share with all their
+# closest (dunbar1) connections?
+proportion_shared = 0.50
+```
+
+# Setting parameters for immunity and disease spread
+
+Who in the network starts immune is determined by picking a number of people in the
+network at random, then "spreading" the immunity from them, similar to the way disease
+is spread. This continues until the specified proportion of people are immune.
+
+There are two parameters which determine how clustered immunity is in the network:
+cluster strength and cluster link multiplier.
+
+Cluster strength is the proportion of people in the network who are picked at random
+as immune, before the immunity is spread. For example, a value of 0.01 in a network of
+1000 would mean that 10 people are picked at random. A smaller value means immunity is
+more clustered.
+
+Cluster link multiplier determines the proportion of their connections an immune person
+will "infect" with immunity. A value of 1 means that between a third and a half of all their
+connections will be made immune. A larger value means immunity is more clustered.
+
+Apart from "iters", these should all be arrays in Julia. Every combination
+of the inputs will be simulated n times (where n = iters).
+
+```{julia; results = hidden}
+cluster_strength = [0.1]
+initial_cases = [50]                            # number of people infected at start
+days_vals = [6]                                 # number of days someone is infectious for
+population_start_immune = [0.6]                 # % of population who are immune at start of simulation
+r_values = [3.2]                                # r0 value of disease spread
+iters = 100                                     # number of simulations for each input combination
+cluster_link_multiplier = [0.05, 0.3, 1.5]
+""
+```
+
+
+
+# Creating network
+```{julia; results = hidden}
+# Loading functions
+path = string(homedir(), "/Documents/Julia/main_simulation.jl")
+include(path)
+using Plots, StatsPlots, PlotThemes
+
+# Initialise network
+net = initialise_network(net_size = net_size,
+                        dunbar1 = dunbar1,
+                        dunbar2 = dunbar2,
+                        dunbar3 = dunbar3,
+                        dunbar4 = dunbar4,
+                        dweight1 = dweight1,
+                        dweight2 = dweight2,
+                        dweight3 = dweight3,
+                        dweight4 = dweight4,
+                        proportion_shared = proportion_shared,
+                        verbose = false)
+""
+
+```
+
+The network is stored as a dictionary, with each individual being a
+dictionary within that dictionary. Their connections and strengths of
+connections are stored as arrays, alongside their status.
+
+```{julia; results = hidden}
+# viewing first few connections for person 1
+println(net["1"]["conn"][1:5])
+
+# Strength of those connections
+println(net["1"]["strength"][1:5])
+
+# Person 1's status
+println(net["1"]["status"])
+```
+
+
+
+
+# Running simulations
+
+```{julia; results = hidden}
+
+output, days_mat = sim_spread_mult(net = net,
+                cluster_strength = cluster_strength,
+                initial_cases = initial_cases,
+                days_vals = days_vals,
+                population_start_immune = population_start_immune,
+                iters = iters,
+                r_values = r_values,
+                dunbar1 = dunbar1,
+                dunbar2 = dunbar2,
+                dunbar3 = dunbar3,
+                dunbar4 = dunbar4,
+                dweight1 = dweight1,
+                dweight2 = dweight2,
+                dweight3 = dweight3,
+                dweight4 = dweight4,
+                verbose = false,
+                cluster_link_multiplier = cluster_link_multiplier,
+                return_days = true)
+
+""
+```
+
+
+The above gives us two objects:
+
+output: a summary array with a line for
+each simulation.
+
+days_mat: an array with a row for each simulation,
+and a column for the number of new cases in each simulated day.
+
+```{julia}
+output[1:4, :]
+```
+
+The first 6 columns in the above refer to the input parameters
+cluster strength (first immunity clustering parameter), r0 value,
+% population immune at start, number of cases at start, days people are
+infectious for and cluster link multiplier (second
+immunity clustering parameter).
+
+The final 2 columns represent:
+
+(1) the proportion of the non-immune population who became infected
+
+(2) the length of the outbreak before it ended (number of days)
+
+
+# Exploring outputs
+
+Viewing daily new cases for the first four simulations
+
+```{julia}
+a = days_mat[1, :]
+b = days_mat[2, :]
+c = days_mat[3, :]
+d = days_mat[4, :]
+i = maximum(vcat(findall(a .> 0), findall(b .> 0), findall(c .> 0), findall(d .> 0)))
+plot(hcat(a[1:i], b[1:i], c[1:i], d[1:i]),
+     ylabel = "New cases per day",
+     xlabel = "Days",
+     title = "New cases daily, each line is a different simulation",
+     legend = nothing)
+```
+
+
+
+Viewing distributions of total infections for most and least clustered cases: how different are they?
+
+```{julia}
+csmax = minimum(cluster_strength)
+cmax = maximum(cluster_link_multiplier)
+
+csmin = maximum(cluster_strength)
+cmin = minimum(cluster_link_multiplier)
+
+ix = output[:, 1] .== csmax
+outmax = output[ix, :]
+ix = outmax[:, 6] .== cmax
+outmax = outmax[ix, :]
+
+ix = output[:, 1] .== csmin
+outmin = output[ix, :]
+ix = outmin[:, 6] .== cmin
+outmin = outmin[ix, :]
+
+
+violin(["Most clustered" "Least clustered"],
+        hcat(outmax[:, 7], outmin[:, 7]),
+        ylabel = "Proportion of non-immune population infected",
+        title = "Distribution of non-immune population infected",
+        legend = nothing)
+
+```
