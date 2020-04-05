@@ -13,7 +13,7 @@ Source this code for two primary functions:
 
 1) initialise_network() creates a network with 4 levels of connectively (dunbar layers). The user can set the no. of connections at each of the 4 levels, with the default values roughly reflecting Dunbar's hypothesis (5, 15, 40, 90). Everyone in the network will have the same number of connections at each level (this is clearly not a reflection of the real world!)
 
-This runs in under 5 minutes for a 10,000 person network (2012 Macbook Pro), however runtime increases exponentially with size. The network only needs to be initialised once, so a large network could be saved for all disease simulations. 
+This runs in under 5 minutes for a 100,000 person network (2012 Macbook Pro). Runtime increases linearly with size. The network only needs to be initialised once, so a large network could be saved for all disease simulations. 
 
 Inputs are all single values.
 
